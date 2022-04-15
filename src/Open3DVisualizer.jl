@@ -95,7 +95,7 @@ function open_window(intrinsics::GL.CameraIntrinsics, pose::Pose)
     update()
 end
 
-function update()
+function sync()
     vis.poll_events()
     vis.update_renderer()
 end
@@ -109,31 +109,37 @@ function destroy()
     vis.destroy_window()
 end
 
-function add_geometry(geometry)
+function add(geometry; update=true)
     vis.add_geometry(geometry)
-    update()
+    if update 
+        sync() 
+    end
 end
 
-function update_geometry(geometry)
+function update(geometry, update=true)
     vis.add_geometry(geometry)
-    update()
+    if update sync() end
 end
 
-function remove_geometry(geometry)
+function remove(geometry)
     vis.remove_geometry(geometry)
-    update()
+    sync()
 end
 
 function clear()
     vis.clear_geometries()
-    update()
+    sync()
 end
 
 function capture_image()
     img_buf = vis.capture_screen_float_buffer()
 end
 
-function make_point_cloud(pcd, cloud; color=nothing)
+function make_point_cloud(cloud::Matrix; color=nothing)
+    make_point_cloud(nothing, cloud; color=color)
+end
+
+function make_point_cloud(pcd, cloud::Matrix; color=nothing)
     if isnothing(color)
         color = I.colorant"red"
     end
