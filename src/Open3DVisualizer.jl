@@ -139,6 +139,11 @@ function make_point_cloud(cloud::Matrix; color=nothing)
     make_point_cloud(nothing, cloud; color=color)
 end
 
+function make_axes(size::Real=1.0)
+    return o3d.geometry.TriangleMesh.create_coordinate_frame(size=size)
+end
+
+
 function make_point_cloud(pcd, cloud::Matrix; color=nothing)
     if isnothing(color)
         color = I.colorant"red"
@@ -206,6 +211,7 @@ function make_mesh(m, filename::String; color=nothing)
     o3d.io.read_triangle_mesh(filename)    
 end
 
+
 function make_mesh(m, mesh::GL.Mesh; color=nothing)
     if isnothing(color)
         color = I.colorant"red"
@@ -225,6 +231,26 @@ function make_mesh(m, mesh::GL.Mesh; color=nothing)
         permutedims(mesh.indices),
         [color.r, color.g, color.b]
     )
+end
+
+function move_mesh_to_pose(m, pose::Pose)
+    m.transform(pose_to_transformation_matrix(pose))
+    m
+end
+
+function make_agent(m, pose::Pose; size = 0.2)
+    radius = size
+    h = radius * 4.0
+    cone = o3d.geometry.TriangleMesh.create_cone(radius=radius*2.0, height=h)
+    pretransform = Pose([0.0, 0.0, h], R.RotX(pi))
+    cone = cone.transform(pose_to_transformation_matrix(pretransform))
+    cone = cone.transform(pose_to_transformation_matrix(pose))
+    cone.paint_uniform_color([204, 255, 51] ./ 255.0)
+
+    sphere = o3d.geometry.TriangleMesh.create_sphere(radius= radius)
+    sphere.paint_uniform_color([0, 0, 0] ./ 255.0)
+    sphere = sphere.transform(pose_to_transformation_matrix(pose))
+    cone + sphere
 end
 
 end
