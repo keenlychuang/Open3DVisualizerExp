@@ -19,7 +19,7 @@ end
 
 function pose_to_transformation_matrix(pose::Pose)::Matrix
     transform = zeros(4,4)
-    transform[1:3,1:3] .= Matrix(R.RotMatrix3(pose.orientation))
+    transform[1:3,1:3] .= Matrix(R.RotMatrix{3}(pose.orientation))
     transform[1:3, 4] .= pose.pos
     transform[4,4] = 1.
     transform
