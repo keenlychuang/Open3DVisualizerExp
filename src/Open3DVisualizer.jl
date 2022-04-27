@@ -25,74 +25,75 @@ function pose_to_transformation_matrix(pose::Pose)::Matrix
     transform
 end
 
-function open_window2(intrinsics::GL.CameraIntrinsics, pose::Pose)
+function open_window(intrinsics::GL.CameraIntrinsics, pose::Pose)
+    global vis
+    width, height = intrinsics.width, intrinsics.height
+    vis = o3d.visualization.Visualizer()
+    vis.create_window(width=intrinsics.width, height=intrinsics.height)
+
+    mesh = o3d.geometry.TriangleMesh.create_box()
+    vis.add_geometry(mesh)
+
+    view = vis.get_view_control()
+
     PyCall.py"""
-    import time
-    def make_window(width, height, fx, fy, cx, cy, ext_mat):
-        vis = o3d.visualization.Visualizer()
-        vis.create_window(width=width, height=height)
-
-        mesh = o3d.geometry.TriangleMesh.create_box()
-        vis.add_geometry(mesh)
-        for _ in range(10):
-         capture_screen_float_buffer   vis.poll_events()
-            vis.update_renderer()
-            time.sleep(0.05)
-        vis.get_render_option()
-        vis.get_window_name()
-        time.sleep(1.0)
-
-        view = vis.get_view_control()
-
-        camera = o3d.camera.PinholeCameraParameters()
-        intrinsics = o3d.camera.PinholeCameraIntrinsic(
+    def make_camera_params(width, height, fx, fy, cx, cy, ext_mat):
+        cam = o3d.camera.PinholeCameraParameters()
+        intr = o3d.camera.PinholeCameraIntrinsic(
             width, height, fx, fy, cx, cy
         )
-        ext_mat_np = np.array(ext_mat)
-        camera.extrinsic = ext_mat_np 
-        view.convert_from_pinhole_camera_parameters(camera, allow_arbitrary=True)
-        print(view.convert_to_pinhole_camera_parameters().extrinsic)
+        cam.intrinsic = intr
+        cam.extrinsic = ext_mat
+        return cam
     """
-    PyCall.py"make_window"(
+
+    camera = PyCall.py"make_camera_params"(
         intrinsics.width, intrinsics.height,
         intrinsics.fx, intrinsics.fy,
         intrinsics.cx, intrinsics.cy,
         pose_to_transformation_matrix(inv(pose))
     )
+
+    view.convert_from_pinhole_camera_parameters(camera, allow_arbitrary=true)
+    vis.remove_geometry(mesh)
+end
+
+function get_camera_extrinsics()
+    global vis
+    view = vis.get_view_control()
+end
+
+function set_camera_intrinsics_and_pose(intrinsics::GL.CameraIntrinsics, pose::Pose)
+    global vis
+    view = vis.get_view_control()
+
+    PyCall.py"""
+    def make_camera_params(width, height, fx, fy, cx, cy, ext_mat):
+        cam = o3d.camera.PinholeCameraParameters()
+        intr = o3d.camera.PinholeCameraIntrinsic(
+            width, height, fx, fy, cx, cy
+        )
+        cam.intrinsic = intr
+        cam.extrinsic = ext_mat
+        return cam
+    """
+
+    camera = PyCall.py"make_camera_params"(
+        intrinsics.width, intrinsics.height,
+        intrinsics.fx, intrinsics.fy,
+        intrinsics.cx, intrinsics.cy,
+        pose_to_transformation_matrix(inv(pose))
+    )
+
+    view.convert_from_pinhole_camera_parameters(camera, allow_arbitrary=true)
+    @show view.convert_to_pinhole_camera_parameters().extrinsic
+
 end
 
 function open_window()
     global vis
     vis = o3d.visualization.Visualizer()
     vis.create_window()
-end
-
-function open_window(intrinsics::GL.CameraIntrinsics, pose::Pose)
-    global vis
-    vis = o3d.visualization.Visualizer()
-    vis.create_window(width=intrinsics.width, height=intrinsics.height)
-    PyCall.py"""
-    import numpy as np
-    def make_camera_params(vis, width, height, fx, fy, cx, cy, ext_mat):
-        view = vis.get_view_control()
-        camera = o3d.camera.PinholeCameraParameters()
-        camera.intrinsic = o3d.camera.PinholeCameraIntrinsic(
-            width, height, fx, fy, cx, cy
-        )
-        ext_mat_np = np.array(ext_mat)
-        camera.extrinsic = ext_mat_np 
-        view.convert_from_pinhole_camera_parameters(camera, allow_arbitrary=True)
-        print(view.convert_to_pinhole_camera_parameters().extrinsic)
-    """
-    ext_mat = pose_to_transformation_matrix(inv(pose))
-    @show ext_mat
-    PyCall.py"make_camera_params"(
-        vis,
-        intrinsics.width, intrinsics.height,
-        intrinsics.fx, intrinsics.fy, intrinsics.cx, intrinsics.cy,
-        ext_mat
-    )
-    update()
 end
 
 function sync()
@@ -135,14 +136,13 @@ function capture_image()
     img_buf = vis.capture_screen_float_buffer()
 end
 
-function make_point_cloud(cloud::Matrix; color=nothing)
-    make_point_cloud(nothing, cloud; color=color)
-end
-
 function make_axes(size::Real=1.0)
     return o3d.geometry.TriangleMesh.create_coordinate_frame(size=size)
 end
 
+function make_point_cloud(cloud::Matrix; color=nothing)
+    make_point_cloud(nothing, cloud; color=color)
+end
 
 function make_point_cloud(pcd, cloud::Matrix; color=nothing)
     if isnothing(color)
@@ -162,6 +162,10 @@ function make_point_cloud(pcd, cloud::Matrix; color=nothing)
     colors[:,3] .= color.b
     pcd = PyCall.py"make_point_cloud"(pcd, collect(transpose(cloud)), colors)
 end
+
+function make_bounding_box(box::S.Box, pose::Pose; color=nothing)
+    make_bounding_box(nothing, box, pose; color=color)
+end 
 
 function make_bounding_box(line_set, box::S.Box, pose::Pose; color=nothing)
     if isnothing(color)
@@ -207,10 +211,19 @@ function make_bounding_box(line_set, box::S.Box, pose::Pose; color=nothing)
     line_set = PyCall.py"make_bbox"(line_set, points, lines, [color.r, color.g, color.b])
 end
 
-function make_mesh(m, filename::String; color=nothing)
-    o3d.io.read_triangle_mesh(filename)    
+
+function make_mesh(filename::String; color=nothing)
+    make_mesh(nothing, filename; colors=color)
 end
 
+function make_mesh(m, filename::String; color=nothing)
+    o3d.io.read_triangle_mesh(filename, true)
+end
+
+
+function make_mesh(mesh::GL.Mesh; color=nothing)
+    make_mesh(nothing, mesh; color=color)
+end
 
 function make_mesh(m, mesh::GL.Mesh; color=nothing)
     if isnothing(color)
@@ -236,6 +249,10 @@ end
 function move_mesh_to_pose(m, pose::Pose)
     m.transform(pose_to_transformation_matrix(pose))
     m
+end
+
+function make_agent(pose::Pose; size = 0.2)
+    make_agent(nothing, pose; size=size)
 end
 
 function make_agent(m, pose::Pose; size = 0.2)
