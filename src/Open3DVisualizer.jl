@@ -251,21 +251,24 @@ function move_mesh_to_pose(m, pose::Pose)
     m
 end
 
-function make_agent(pose::Pose; size = 0.2)
-    make_agent(nothing, pose; size=size)
+function make_agent(pose::Pose; size = 0.2, color=nothing)
+    make_agent(nothing, pose; size=size, color=color)
 end
 
-function make_agent(m, pose::Pose; size = 0.2)
+function make_agent(m, pose::Pose; size = 0.2, color=nothing)
+    if isnothing(color)
+        color = I.colorant"limegreen"
+    end
     radius = size
     h = radius * 4.0
     cone = o3d.geometry.TriangleMesh.create_cone(radius=radius*2.0, height=h)
     pretransform = Pose([0.0, 0.0, h], R.RotX(pi))
     cone = cone.transform(pose_to_transformation_matrix(pretransform))
     cone = cone.transform(pose_to_transformation_matrix(pose))
-    cone.paint_uniform_color([204, 255, 51] ./ 255.0)
+    cone.paint_uniform_color([color.r, color.g, color.b])
 
     sphere = o3d.geometry.TriangleMesh.create_sphere(radius= radius)
-    sphere.paint_uniform_color([0, 0, 0] ./ 255.0)
+    sphere.paint_uniform_color([color.r, color.g, color.b])
     sphere = sphere.transform(pose_to_transformation_matrix(pose))
     cone + sphere
 end
