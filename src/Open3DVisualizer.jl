@@ -7,6 +7,7 @@ import PoseComposition: Pose, IDENTITY_ORN, IDENTITY_POSE
 import Images as I
 import Rotations as R
 import GLRenderer as GL
+import LinearAlgebra: norm, cross, dot
 
 
 function __init__()
@@ -272,5 +273,48 @@ function make_agent(m, pose::Pose; size = 0.2, color=nothing)
     sphere = sphere.transform(pose_to_transformation_matrix(pose))
     cone + sphere
 end
+
+function make_arrow(start::Vector{<:Real},dest::Vector{<:Real},radius; color=nothing)
+    if isnothing(color)
+        color = I.colorant"blue"
+    end
+
+    distance = sqrt(sum((start .- dest).^2))
+    cylinder_height = distance * 0.95
+    cone_height = distance - cylinder_height
+    cylinder_radius = radius
+    cone_radius = cylinder_radius * 2.0
+
+    newZ = (dest  .- start) ./ distance
+
+    zUnit = [0, 0, 1]
+    if newZ ≈ -zUnit
+      axis = [1, 0, 0]
+      geodesicAngle = π
+    elseif newZ ≈ zUnit
+      axis = [1, 0, 0]
+      geodesicAngle = 0
+    else
+      axis = cross(zUnit, newZ)
+      geodesicAngle = let
+        θ = asin(clamp(norm(axis), -1, 1))
+        dot(zUnit, newZ) > 0 ? θ : π - θ
+      end
+    end
+    
+    rot = R.AngleAxis(geodesicAngle, axis...)
+    pose = Pose(start, rot)
+
+    arrow = o3d.geometry.TriangleMesh.create_arrow(
+        cylinder_radius=cylinder_radius,
+        cone_radius=cone_radius,
+        cylinder_height=cylinder_height,
+        cone_height=cone_height
+    )
+    arrow.transform(pose_to_transformation_matrix(pose))
+    arrow.paint_uniform_color([color.r, color.g, color.b])
+
+    arrow
+end 
 
 end
