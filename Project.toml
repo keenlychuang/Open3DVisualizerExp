@@ -1,11 +1,12 @@
 name = "Open3DVisualizer"
 uuid = "5fbb99ef-bc26-44e9-8a46-eed37f757c39"
 authors = ["Nishad Gothoskar <nishadg@mit.edu>"]
-version = "0.1.1"
+version = "0.1.2"
 
 [deps]
 GLRenderer = "d1e26eb4-c061-4a47-b8d4-4152ce573b03"
 Images = "916415d5-f1e6-5110-898d-aaa5f9f070e0"
+LinearAlgebra = "37e2e46d-f89d-539d-b4ee-838fcccc9c8e"
 MiniGSG = "888bd7f2-f8c6-44ef-b90f-8999fb25fa02"
 PoseComposition = "0a8ab332-79e8-43e0-a313-949ce1168071"
 PyCall = "438e738f-606a-5dbb-bf0a-cddfbfd45ab0"
