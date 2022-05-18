@@ -26,8 +26,27 @@ function pose_to_transformation_matrix(pose::Pose)::Matrix
     transform
 end
 
+
+function open_window()
+    global vis
+    global camera_intrinsics
+    global camera_pose
+
+    camera_intrinsics = nothing
+    camera_pose = nothing
+
+    vis = o3d.visualization.Visualizer()
+    vis.create_window()
+end
+
 function open_window(intrinsics::GL.CameraIntrinsics, pose::Pose)
     global vis
+    global camera_intrinsics
+    global camera_pose
+
+    camera_intrinsics = intrinsics
+    camera_pose = pose
+
     width, height = intrinsics.width, intrinsics.height
     vis = o3d.visualization.Visualizer()
     vis.create_window(width=intrinsics.width, height=intrinsics.height)
@@ -87,17 +106,14 @@ function set_camera_intrinsics_and_pose(intrinsics::GL.CameraIntrinsics, pose::P
     )
 
     view.convert_from_pinhole_camera_parameters(camera, allow_arbitrary=true)
-    @show view.convert_to_pinhole_camera_parameters().extrinsic
-
 end
 
-function open_window()
-    global vis
-    vis = o3d.visualization.Visualizer()
-    vis.create_window()
-end
 
 function sync()
+    global vis
+    if !isnothing(camera_intrinsics)
+        set_camera_intrinsics_and_pose(camera_intrinsics, camera_pose)
+    end
     vis.poll_events()
     vis.update_renderer()
 end
@@ -113,7 +129,7 @@ end
 
 function add(geometry; update=true)
     vis.add_geometry(geometry)
-    if update 
+    if update
         sync() 
     end
 end
@@ -137,15 +153,17 @@ function capture_image()
     img_buf = vis.capture_screen_float_buffer()
 end
 
-function make_axes(size::Real=1.0)
-    return o3d.geometry.TriangleMesh.create_coordinate_frame(size=size)
+function make_axes(size::Real=1.0, update=true)
+    a = o3d.geometry.TriangleMesh.create_coordinate_frame(size=size)
+    add(a; update=update)
+    a
 end
 
 function make_point_cloud(cloud::Matrix; color=nothing)
     make_point_cloud(nothing, cloud; color=color)
 end
 
-function make_point_cloud(pcd, cloud::Matrix; color=nothing)
+function make_point_cloud(pcd, cloud::Matrix; color=nothing, update=true)
     if isnothing(color)
         color = I.colorant"red"
     end
@@ -162,13 +180,15 @@ function make_point_cloud(pcd, cloud::Matrix; color=nothing)
     colors[:,2] .= color.g
     colors[:,3] .= color.b
     pcd = PyCall.py"make_point_cloud"(pcd, collect(transpose(cloud)), colors)
+    add(pcd; update=update)
+    pcd
 end
 
-function make_bounding_box(box::S.Box, pose::Pose; color=nothing)
-    make_bounding_box(nothing, box, pose; color=color)
+function make_bounding_box(box::S.Box, pose::Pose; color=nothing, update=true)
+    make_bounding_box(nothing, box, pose; color=color, update=update)
 end 
 
-function make_bounding_box(line_set, box::S.Box, pose::Pose; color=nothing)
+function make_bounding_box(line_set, box::S.Box, pose::Pose; color=nothing, update=true)
     if isnothing(color)
         color = I.colorant"black"
     end
@@ -210,23 +230,31 @@ function make_bounding_box(line_set, box::S.Box, pose::Pose; color=nothing)
         4 8 
     ] .- 1
     line_set = PyCall.py"make_bbox"(line_set, points, lines, [color.r, color.g, color.b])
+    add(line_set; update=update)
+    line_set
 end
 
 
-function make_mesh(filename::String; color=nothing)
-    make_mesh(nothing, filename; colors=color)
+function make_mesh(filename::String; color=nothing, update=true)
+    m = make_mesh(nothing, filename; colors=color)
+    add(m; update=update)
+    m
 end
 
-function make_mesh(m, filename::String; color=nothing)
-    o3d.io.read_triangle_mesh(filename, true)
+function make_mesh(m, filename::String; color=nothing, update=true)
+    m = o3d.io.read_triangle_mesh(filename, true)
+    add(m; update=update)
+    m
 end
 
 
-function make_mesh(mesh::GL.Mesh; color=nothing)
-    make_mesh(nothing, mesh; color=color)
+function make_mesh(mesh::GL.Mesh; color=nothing, update=true)
+    m = make_mesh(nothing, mesh; color=color)
+    add(m; update=update)
+    m
 end
 
-function make_mesh(m, mesh::GL.Mesh; color=nothing)
+function make_mesh(m, mesh::GL.Mesh; color=nothing, update=true)
     if isnothing(color)
         color = I.colorant"red"
     end
@@ -245,6 +273,8 @@ function make_mesh(m, mesh::GL.Mesh; color=nothing)
         permutedims(mesh.indices),
         [color.r, color.g, color.b]
     )
+    add(m; update=update)
+    m
 end
 
 function move_mesh_to_pose(m, pose::Pose)
@@ -252,11 +282,13 @@ function move_mesh_to_pose(m, pose::Pose)
     m
 end
 
-function make_agent(pose::Pose; size = 0.2, color=nothing)
-    make_agent(nothing, pose; size=size, color=color)
+function make_agent(pose::Pose; size = 0.2, color=nothing, update=true)
+    a = make_agent(nothing, pose; size=size, color=color)
+    add(a; update=update)
+    a
 end
 
-function make_agent(m, pose::Pose; size = 0.2, color=nothing)
+function make_agent(m, pose::Pose; size = 0.2, color=nothing, update=true)
     if isnothing(color)
         color = I.colorant"limegreen"
     end
@@ -271,10 +303,12 @@ function make_agent(m, pose::Pose; size = 0.2, color=nothing)
     sphere = o3d.geometry.TriangleMesh.create_sphere(radius= radius)
     sphere.paint_uniform_color([color.r, color.g, color.b])
     sphere = sphere.transform(pose_to_transformation_matrix(pose))
-    cone + sphere
+    a = cone + sphere
+    add(a; update=update)
+    a
 end
 
-function make_arrow(start::Vector{<:Real},dest::Vector{<:Real},radius; color=nothing)
+function make_arrow(start::Vector{<:Real},dest::Vector{<:Real},radius; color=nothing, update=true)
     if isnothing(color)
         color = I.colorant"blue"
     end
@@ -314,6 +348,7 @@ function make_arrow(start::Vector{<:Real},dest::Vector{<:Real},radius; color=not
     arrow.transform(pose_to_transformation_matrix(pose))
     arrow.paint_uniform_color([color.r, color.g, color.b])
 
+    add(arrow; update=update)
     arrow
 end 
 
