@@ -121,10 +121,12 @@ end
 function run()
     vis.run()
     vis.destroy_window()
+    vis.close()
 end
 
 function destroy()
     vis.destroy_window()
+    vis.close()
 end
 
 function add(geometry; update=true)
