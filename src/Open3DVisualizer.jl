@@ -155,6 +155,11 @@ function capture_image()
     img_buf = vis.capture_screen_float_buffer()
 end
 
+function capture_image(filename::String)
+    vis.capture_screen_image(filename)
+end
+
+
 function make_axes(size::Real=1.0, update=true)
     a = o3d.geometry.TriangleMesh.create_coordinate_frame(size=size)
     add(a; update=update)
@@ -235,6 +240,32 @@ function make_bounding_box(line_set, box::S.Box, pose::Pose; color=nothing, upda
     add(line_set; update=update)
     line_set
 end
+
+function make_line_set(points, lines; color=nothing, update=true)
+    make_line_set(nothing, points, lines; color=color, update=update)
+end
+
+function make_line_set(line_set, points, lines; color=nothing, update=true)
+    if isnothing(color)
+        color = I.colorant"black"
+    end
+    PyCall.py"""
+    def make_bbox(line_set, points, lines, color):
+        if line_set is None:
+            line_set = o3d.geometry.LineSet()
+        line_set.points =  o3d.utility.Vector3dVector(points)
+        line_set.lines = o3d.utility.Vector2iVector(lines)
+        if color is not None:
+            line_set.paint_uniform_color(color)
+        return line_set
+    """
+    points = permutedims(points)
+    lines = permutedims(lines) .- 1
+    line_set = PyCall.py"make_bbox"(line_set, points, lines, [color.r, color.g, color.b])
+    add(line_set; update=update)
+    line_set
+end
+
 
 
 function make_mesh(filename::String; color=nothing, update=true)
