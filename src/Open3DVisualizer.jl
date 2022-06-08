@@ -39,6 +39,11 @@ function open_window()
     vis.create_window()
 end
 
+
+function open_window(intrinsics::GL.CameraIntrinsics)
+    open_window(intrinsics, IDENTITY_POSE)
+end
+
 function open_window(intrinsics::GL.CameraIntrinsics, pose::Pose)
     global vis
     global camera_intrinsics
@@ -76,16 +81,13 @@ function open_window(intrinsics::GL.CameraIntrinsics, pose::Pose)
 
     view.convert_from_pinhole_camera_parameters(camera, allow_arbitrary=true)
     vis.remove_geometry(mesh)
+    vis.poll_events()
+    vis.update_renderer()
 end
 
-function get_camera_extrinsics()
-    global vis
-    view = vis.get_view_control()
-end
-
-function set_camera_intrinsics_and_pose(intrinsics::GL.CameraIntrinsics, pose::Pose)
-    global vis
-    view = vis.get_view_control()
+function set_camera_pose(pose::Pose)
+    global camera_intrinsics
+    global camera_pose
 
     PyCall.py"""
     def make_camera_params(width, height, fx, fy, cx, cy, ext_mat):
@@ -97,22 +99,37 @@ function set_camera_intrinsics_and_pose(intrinsics::GL.CameraIntrinsics, pose::P
         cam.extrinsic = ext_mat
         return cam
     """
+    camera_pose = pose
 
-    camera = PyCall.py"make_camera_params"(
-        intrinsics.width, intrinsics.height,
-        intrinsics.fx, intrinsics.fy,
-        intrinsics.cx, intrinsics.cy,
-        pose_to_transformation_matrix(inv(pose))
-    )
+    view = vis.get_view_control()
+    if isnothing(camera_intrinsics)
+        intrinsics = view.convert_to_pinhole_camera_parameters().intrinsic
+        camera = PyCall.py"make_camera_params"(
+            intrinsics.width, intrinsics.height,
+            intrinsics.get_focal_length()...,
+            intrinsics.get_principal_point()...,
+            pose_to_transformation_matrix(inv(camera_pose))
+        )
+
+    else
+        intrinsics = camera_intrinsics
+        camera = PyCall.py"make_camera_params"(
+            intrinsics.width, intrinsics.height,
+            intrinsics.fx, intrinsics.fy,
+            intrinsics.cx, intrinsics.cy,
+            pose_to_transformation_matrix(inv(camera_pose))
+        )
+    end
 
     view.convert_from_pinhole_camera_parameters(camera, allow_arbitrary=true)
+    vis.poll_events()
+    vis.update_renderer()
 end
-
 
 function sync()
     global vis
-    if !isnothing(camera_intrinsics)
-        set_camera_intrinsics_and_pose(camera_intrinsics, camera_pose)
+    if !isnothing(camera_pose)
+        set_camera_pose(camera_pose)
     end
     vis.poll_events()
     vis.update_renderer()
@@ -182,11 +199,15 @@ function make_point_cloud(pcd, cloud::Matrix; color=nothing, update=true)
         pcd.colors = o3d.utility.Vector3dVector(colors)
         return pcd
     """
-    colors = zeros(size(cloud)[2], 3)
-    colors[:,1] .= color.r
-    colors[:,2] .= color.g
-    colors[:,3] .= color.b
-    pcd = PyCall.py"make_point_cloud"(pcd, collect(transpose(cloud)), colors)
+    if typeof(color) <: I.Color
+        colors = zeros(size(cloud)[2], 3)
+        colors[:,1] .= color.r
+        colors[:,2] .= color.g
+        colors[:,3] .= color.b
+    else
+        colors = collect(permutedims(color))
+    end
+    pcd = PyCall.py"make_point_cloud"(pcd, collect(transpose(cloud[1:3,:])), colors)
     add(pcd; update=update)
     pcd
 end
@@ -315,26 +336,25 @@ function move_mesh_to_pose(m, pose::Pose)
     m
 end
 
-function make_agent(pose::Pose; size = 0.2, color=nothing, update=true)
-    a = make_agent(nothing, pose; size=size, color=color)
+function make_agent(pose::Pose; size = 0.1, update=true)
+    a = make_agent(nothing, pose; size=size)
     add(a; update=update)
     a
 end
 
-function make_agent(m, pose::Pose; size = 0.2, color=nothing, update=true)
-    if isnothing(color)
-        color = I.colorant"limegreen"
-    end
+function make_agent(m, pose::Pose; size = 0.1, update=true)
+    color1 = I.colorant"limegreen"
+    color2 = I.colorant"red"
     radius = size
     h = radius * 4.0
     cone = o3d.geometry.TriangleMesh.create_cone(radius=radius*2.0, height=h)
     pretransform = Pose([0.0, 0.0, h], R.RotX(pi))
     cone = cone.transform(pose_to_transformation_matrix(pretransform))
     cone = cone.transform(pose_to_transformation_matrix(pose))
-    cone.paint_uniform_color([color.r, color.g, color.b])
+    cone.paint_uniform_color([color1.r, color1.g, color1.b])
 
     sphere = o3d.geometry.TriangleMesh.create_sphere(radius= radius)
-    sphere.paint_uniform_color([color.r, color.g, color.b])
+    sphere.paint_uniform_color([color2.r, color2.g, color2.b])
     sphere = sphere.transform(pose_to_transformation_matrix(pose))
     a = cone + sphere
     add(a; update=update)
