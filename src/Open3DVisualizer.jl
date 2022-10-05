@@ -405,4 +405,119 @@ function make_arrow(start::Vector{<:Real},dest::Vector{<:Real},radius; color=not
     arrow
 end 
 
+"""
+Old Struct: 
+mutable struct OccupancyGrid3D
+    ...
+    occupied_voxel_cells::Matrix{Int}               
+    occupied_voxel_cells_3d_array                   #Array of values whether grid space is occupied 
+end
+"""
+
+"""
+New Struct: 
+mutable struct OccupancyGrid3D_
+    ...
+    occupied_cells::Matrix{Int}
+    dense::Array{VoxelOccupied,3}                   #Array of values whether grid space is occupied 
+end
+"""
+# Visualization Utility functions
+
+#Returns a Pose from a given occupancy grid coordinate
+function occupancy_grid_coord_to_pose(coord, resolution_per_dimension)
+    Pose([(coord .* resolution_per_dimension)...], IDENTITY_ORN)
+end
+
+#Return a box from a given occupancy coordinate 
+function occupancy_grid_coord_to_box_and_pose(coord, resolution_per_dimension)
+    (box=S.Box(resolution_per_dimension...), pose=occupancy_grid_coord_to_pose(coord, resolution_per_dimension))
+end
+
+#Return all poses in a given occupancy grid 
+function get_occupancy_grid_cell_poses(occupancy_grid::OccupancyGrid3D_)
+    [Pose(p...) for p in eachcol(occupancy_grid.occupied_cells .* occupancy_grid.resolution_per_dimension)]
+end
+
+#TODO: Refactor and comment
+function get_occupancy_grid_cell_poses_occluded(occupancy_grid::OccupancyGrid3D_)
+    [Pose(p...) for p in eachcol(occupancy_grid.all_point_cloud_cells_ravel[:,occupancy_grid.occluded[:]])]
+end
+
+#Return cell poses that are not occluded 
+function get_occupancy_grid_cell_poses_free(occupancy_grid::OccupancyGrid3D_)
+    [Pose(p...) for p in eachcol(occupancy_grid.occupied_cells[:,.!(occupancy_grid.occluded[:]) .& .!(occupancy_grid.occupied[:])])]
+end
+
+#Return a mesh from the given occupancy grid 
+function make_mesh_from_occupancy_grid(occupancy_grid::OccupancyGrid3D_; wireframe=false)
+    resolution_per_dimension = occupancy_grid.resolution_per_dimension
+    if wireframe
+        m = T.GL.box_wireframe_mesh_from_dims(resolution_per_dimension, 0.001)
+    else
+        m = T.GL.box_mesh_from_dims(resolution_per_dimension)
+    end
+    occ_grid_meshes = [T.shift_mesh_to_pose(m, pose) for pose in get_occupancy_grid_cell_poses(occupancy_grid)];
+    occ_grid_mesh = sum(occ_grid_meshes);
+    occ_grid_mesh
+end
+
+#Visualize a given occupancy grid 
+function visualize_occupancy_grid(occupancy_grid::OccupancyGrid3D_)
+    resolution_per_dimension = occupancy_grid.resolution_per_dimension
+    b = S.Box((resolution_per_dimension .* 0.9)...)
+    points_and_lines  = [
+        T.get_bbox_points_and_lines(b, pose) for pose in get_occupancy_grid_cell_poses(occupancy_grid)
+    ];
+    points = hcat([x[1] for x in points_and_lines]...);
+    lines = hcat([x[2].+(8*(i-1)) for (i,x) in enumerate(points_and_lines)]...);
+    V.make_line_set(points, lines)
+end
+
+#Visualize a 2D region from a given occupancy grid and the matrix representing the region 
+function visualize_2d_region(occupancy_grid::OccupancyGrid3D_, region::Matrix)  
+    resolution_per_dimension = occupancy_grid.resolution_per_dimension
+    b = S.Box(resolution_per_dimension...)
+    points_and_lines  = [
+        let
+            y = nothing
+            if isnothing(y)
+                y = occupancy_grid.maxs[2]
+            end
+            coord = [x,y,z]
+            pose = Pose([(coord .* resolution_per_dimension)...], IDENTITY_ORN)
+            T.get_bbox_points_and_lines(b, pose)
+        end
+        for (x,z) in eachcol(region)
+    ];
+    points = hcat([x[1] for x in points_and_lines]...);
+    lines = hcat([x[2].+(8*(i-1)) for (i,x) in enumerate(points_and_lines)]...);
+    V.make_line_set(points, lines; color=T.I.colorant"red")
+end
+
+#Visualize a 2D region from a given occupancy grid and the vector representing the region
+function visualize_2d_region(occupancy_grid::OccupancyGrid3D_, region::Vector)  
+    visualize_2d_region(occupancy_grid, hcat(region...))
+end
+
+#Visualize the occupancy grid cells of a given occupancy grid and matrix of cells 
+function visualize_occupancy_grid_cells(occupancy_grid::OccupancyGrid3D_, cells::Matrix; color=nothing)
+    if isnothing(color)
+        color = T.I.colorant"red"
+    end
+
+    resolution_per_dimension = occupancy_grid.resolution_per_dimension
+    b = S.Box(resolution_per_dimension...)
+    points_and_lines  = [
+        let
+            pose = Pose([(coord .* resolution_per_dimension)...], IDENTITY_ORN)
+            T.get_bbox_points_and_lines(b, pose)
+        end
+        for coord in eachcol(cells)
+    ];
+    points = hcat([x[1] for x in points_and_lines]...);
+    lines = hcat([x[2].+(8*(i-1)) for (i,x) in enumerate(points_and_lines)]...);
+    V.make_line_set(points, lines; color=color)
+end
+
 end
