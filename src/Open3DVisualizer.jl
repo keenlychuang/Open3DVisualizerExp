@@ -439,12 +439,12 @@ function get_occupancy_grid_cell_poses(occupancy_grid::OccupancyGrid3D_)
     [Pose(p...) for p in eachcol(occupancy_grid.occupied_cells .* occupancy_grid.resolution_per_dimension)]
 end
 
-#
+#TODO; ensure this function can work with new struct, otherwise rewrite 
 function get_occupancy_grid_cell_poses_occluded(occupancy_grid::OccupancyGrid3D_)
     [Pose(p...) for p in eachcol(occupancy_grid.all_point_cloud_cells_ravel[:,occupancy_grid.occluded[:]])]
 end
 
-#Return cell poses that are not occluded 
+#TODO; ensure this function can work with new struct, otherwise rewrite 
 function get_occupancy_grid_cell_poses_free(occupancy_grid::OccupancyGrid3D_)
     [Pose(p...) for p in eachcol(occupancy_grid.occupied_cells[:,.!(occupancy_grid.occluded[:]) .& .!(occupancy_grid.occupied[:])])]
 end
