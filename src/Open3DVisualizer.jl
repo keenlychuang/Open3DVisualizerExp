@@ -419,7 +419,7 @@ New Struct:
 mutable struct OccupancyGrid3D_
     ...
     occupied_cells::Matrix{Int}
-    dense::Array{VoxelOccupied,3}                   #Array of values whether grid space is occupied 
+    dense::Array{VoxelOccupied,3}                   #Array of values whether grid space is occupied
 end
 """
 # Visualization Utility functions
@@ -439,7 +439,7 @@ function get_occupancy_grid_cell_poses(occupancy_grid::OccupancyGrid3D_)
     [Pose(p...) for p in eachcol(occupancy_grid.occupied_cells .* occupancy_grid.resolution_per_dimension)]
 end
 
-#TODO: Refactor and comment
+#
 function get_occupancy_grid_cell_poses_occluded(occupancy_grid::OccupancyGrid3D_)
     [Pose(p...) for p in eachcol(occupancy_grid.all_point_cloud_cells_ravel[:,occupancy_grid.occluded[:]])]
 end
