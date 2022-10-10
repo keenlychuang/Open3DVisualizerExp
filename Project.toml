@@ -1,4 +1,4 @@
-name = "Open3DVisualizer"
+name = "Open3DVisualizerExp"
 uuid = "5fbb99ef-bc26-44e9-8a46-eed37f757c39"
 authors = ["Nishad Gothoskar <nishadg@mit.edu>"]
 version = "0.1.5"

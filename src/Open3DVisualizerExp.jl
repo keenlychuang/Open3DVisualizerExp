@@ -1,4 +1,4 @@
-module Open3DVisualizer
+module Open3DVisualizerExp
 
 import PyCall
 import MiniGSG as S
@@ -405,23 +405,6 @@ function make_arrow(start::Vector{<:Real},dest::Vector{<:Real},radius; color=not
     arrow
 end 
 
-"""
-Old Struct: 
-mutable struct OccupancyGrid3D
-    ...
-    occupied_voxel_cells::Matrix{Int}               
-    occupied_voxel_cells_3d_array                   #Array of values whether grid space is occupied 
-end
-"""
-
-"""
-New Struct: 
-mutable struct OccupancyGrid3D_
-    ...
-    occupied_cells::Matrix{Int}
-    dense::Array{VoxelOccupied,3}                   #Array of values whether grid space is occupied
-end
-"""
 # Visualization Utility functions
 
 #Returns a Pose from a given occupancy grid coordinate
