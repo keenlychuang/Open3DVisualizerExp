@@ -18,6 +18,7 @@ function __init__()
     """
 end
 
+#Return a transformation matrix from a given pose
 function pose_to_transformation_matrix(pose::Pose)::Matrix
     transform = zeros(4,4)
     transform[1:3,1:3] .= Matrix(R.RotMatrix{3}(pose.orientation))
@@ -26,7 +27,7 @@ function pose_to_transformation_matrix(pose::Pose)::Matrix
     transform
 end
 
-
+#Creates and opens an Open3D Visualizer Window 
 function open_window()
     global vis
     global camera_intrinsics
@@ -40,10 +41,13 @@ function open_window()
 end
 
 
+#Creates and opens an Open3D Visualizer Window with the given camera intrinsics with a default pose 
 function open_window(intrinsics::GL.CameraIntrinsics)
     open_window(intrinsics, IDENTITY_POSE)
 end
 
+
+#Creates and opens an Open3D Visualizer Window with the given camera intrinsics with the given pose 
 function open_window(intrinsics::GL.CameraIntrinsics, pose::Pose)
     global vis
     global camera_intrinsics
@@ -52,6 +56,7 @@ function open_window(intrinsics::GL.CameraIntrinsics, pose::Pose)
     camera_intrinsics = intrinsics
     camera_pose = pose
 
+    #create window with intrinsic height and width 
     width, height = intrinsics.width, intrinsics.height
     vis = o3d.visualization.Visualizer()
     vis.create_window(width=intrinsics.width, height=intrinsics.height)
@@ -85,6 +90,7 @@ function open_window(intrinsics::GL.CameraIntrinsics, pose::Pose)
     vis.update_renderer()
 end
 
+#Sets the camera pose and updates the visualizaiton
 function set_camera_pose(pose::Pose)
     global camera_intrinsics
     global camera_pose
@@ -126,6 +132,7 @@ function set_camera_pose(pose::Pose)
     vis.update_renderer()
 end
 
+#Updates visualizaiton to most recent events 
 function sync()
     global vis
     if !isnothing(camera_pose)
@@ -135,6 +142,7 @@ function sync()
     vis.update_renderer()
 end
 
+#Activates the current visualizer window and closes
 function run()
     vis.run()
     vis.destroy_window()
@@ -146,6 +154,7 @@ function destroy()
     vis.close()
 end
 
+#Adds a geometry to the visualization, updates the visualizaiton by default
 function add(geometry; update=true)
     vis.add_geometry(geometry)
     if update
@@ -153,40 +162,52 @@ function add(geometry; update=true)
     end
 end
 
+#Adds a geometry to the visualization, updates the visualizaiton by default
 function update(geometry, update=true)
-    vis.add_geometry(geometry)
-    if update sync() end
+    add(geometry, update=update)
 end
 
-function remove(geometry)
+#Removes a geometry from the visualizaiton, updates the visualizaiton by defualt
+function remove(geometry; update =true)
     vis.remove_geometry(geometry)
-    sync()
+    if update
+        sync()
+    end 
 end
 
-function clear()
+#Clears all geometries from the given visualizer, updates the visualizaiton by default
+function clear(update=true)
     vis.clear_geometries()
-    sync()
+    if update 
+        sync()
+    end
 end
 
+
+#Returns an Open3D Image of the current visualizaiton
 function capture_image()
     img_buf = vis.capture_screen_float_buffer()
 end
 
+#Saves a screen image of the current visualizaiton to a filename
 function capture_image(filename::String)
     vis.capture_screen_image(filename)
 end
 
 
+#Creates a TriangleMesh coordinate frame with a given size and updates the visualizaiton with it
 function make_axes(size::Real=1.0, update=true)
     a = o3d.geometry.TriangleMesh.create_coordinate_frame(size=size)
     add(a; update=update)
     a
 end
 
+#Creates, adds, and updates the visualizaiton with a PointCloud given a matrix of points 
 function make_point_cloud(cloud::Matrix; color=nothing)
     make_point_cloud(nothing, cloud; color=color)
 end
 
+#Creates, adds, and updates the visualizaiton with a color of PointCloud given a matrix cloud or pcd, defaulting to pcd 
 function make_point_cloud(pcd, cloud::Matrix; color=nothing, update=true)
     if isnothing(color)
         color = I.colorant"red"
@@ -212,10 +233,13 @@ function make_point_cloud(pcd, cloud::Matrix; color=nothing, update=true)
     pcd
 end
 
+#Creates a colored bounding box given a Box and Pose, returning the LineSet cooresponding to the boundaries 
 function make_bounding_box(box::S.Box, pose::Pose; color=nothing, update=true)
     make_bounding_box(nothing, box, pose; color=color, update=update)
 end 
 
+
+#Creates a colored bounding box given a Box and updates the visualizaiton, returning the LineSet cooresponding to the boundaries
 function make_bounding_box(line_set, box::S.Box, pose::Pose; color=nothing, update=true)
     if isnothing(color)
         color = I.colorant"black"
@@ -262,10 +286,13 @@ function make_bounding_box(line_set, box::S.Box, pose::Pose; color=nothing, upda
     line_set
 end
 
+#Returns a Lineset from the given points and lines, updates the visualizaiton
 function make_line_set(points, lines; color=nothing, update=true)
     make_line_set(nothing, points, lines; color=color, update=update)
 end
 
+
+#Returns a Lineset from the given points and lines, updating a lineset if specified and updating the visualizaiton
 function make_line_set(line_set, points, lines; color=nothing, update=true)
     if isnothing(color)
         color = I.colorant"black"
@@ -288,13 +315,14 @@ function make_line_set(line_set, points, lines; color=nothing, update=true)
 end
 
 
-
+#given a filename, returns a cooresponding triangle mesh cooresponding to the specified file 
 function make_mesh(filename::String; color=nothing, update=true)
     m = make_mesh(nothing, filename; colors=color)
     add(m; update=update)
     m
 end
 
+#given a filename, returns a triangle mesh cooresponding to specified file 
 function make_mesh(m, filename::String; color=nothing, update=true)
     m = o3d.io.read_triangle_mesh(filename, true)
     add(m; update=update)
@@ -302,12 +330,14 @@ function make_mesh(m, filename::String; color=nothing, update=true)
 end
 
 
+#given a mesh, return a TriangleMesh and update the visualizaiton
 function make_mesh(mesh::GL.Mesh; color=nothing, update=true)
     m = make_mesh(nothing, mesh; color=color)
     add(m; update=update)
     m
 end
 
+# Given a mesh, return a TriangleMesh and update the visualization 
 function make_mesh(m, mesh::GL.Mesh; color=nothing, update=true)
     if isnothing(color)
         color = I.colorant"red"
@@ -336,12 +366,14 @@ function move_mesh_to_pose(m, pose::Pose)
     m
 end
 
+#Creates a trianglemesh representing the agent with a given pose and udpdates the visualizaiton
 function make_agent(pose::Pose; size = 0.1, update=true)
     a = make_agent(nothing, pose; size=size)
     add(a; update=update)
     a
 end
 
+#Creates a trianglemesh representing the agent with a given pose and udpdates the visualizaiton
 function make_agent(m, pose::Pose; size = 0.1, update=true)
     color1 = I.colorant"limegreen"
     color2 = I.colorant"red"
@@ -361,6 +393,7 @@ function make_agent(m, pose::Pose; size = 0.1, update=true)
     a
 end
 
+#Returns a TriangleMesh arrow from the start to the destination and updates the visualizaiton
 function make_arrow(start::Vector{<:Real},dest::Vector{<:Real},radius; color=nothing, update=true)
     if isnothing(color)
         color = I.colorant"blue"
